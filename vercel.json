@@ -1,10 +1,14 @@
 {
+  "framework": null,
+  "buildCommand": "",
+  "outputDirectory": "public",
   "functions": {
     "api/scraper-personer.js": {
       "maxDuration": 60
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" }
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
