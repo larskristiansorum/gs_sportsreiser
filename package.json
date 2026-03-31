@@ -1,0 +1,16 @@
+{
+  "name": "nff-fotball-scraper",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Scraper for kontaktinformasjon fra fotball.no - trenere og daglig ledere",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  }
+}

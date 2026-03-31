@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NFF Fotball Scraper - Kontaktpersoner</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <header class="bg-gradient-to-r from-green-700 to-green-600 shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 py-5 sm:px-6">
+      <h1 class="text-2xl font-bold text-white flex items-center gap-3">
+        <span class="text-3xl">&#9917;</span>
+        NFF Fotball Scraper
+      </h1>
+      <p class="text-green-100 text-sm mt-1">
+        Hent kontaktinformasjon for trenere og daglig ledere fra fotball.no
+      </p>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6 sm:px-6">
+
+    <!-- Velg krets -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6">
+      <h2 class="text-lg font-semibold text-gray-800 mb-3">Velg fotballkrets</h2>
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" id="kretsButtons"></div>
+      <div class="mt-4 flex flex-wrap gap-3">
+        <button onclick="selectAllKretser()" class="text-sm text-green-700 hover:text-green-900 font-medium">Velg alle</button>
+        <span class="text-gray-300">|</span>
+        <button onclick="deselectAllKretser()" class="text-sm text-gray-500 hover:text-gray-700 font-medium">Fjern alle</button>
+      </div>
+    </div>
+
+    <!-- Handlinger -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6">
+      <div class="flex flex-wrap items-center gap-4">
+        <button id="btnScrape" onclick="startScraping()"
+          class="bg-green-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all shadow-sm">
+          Start scraping
+        </button>
+        <button id="btnStop" onclick="stopScraping()" class="hidden bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-red-700 transition-all">
+          Stopp
+        </button>
+        <button id="btnExport" onclick="exportCSV()" disabled
+          class="bg-gray-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all">
+          Eksporter CSV
+        </button>
+        <div id="statusText" class="text-sm text-gray-500"></div>
+      </div>
+      <div id="progressContainer" class="hidden mt-4">
+        <div class="flex justify-between text-xs text-gray-500 mb-1">
+          <span id="progressLabel">Starter...</span>
+          <span id="progressPercent">0%</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-2.5">
+          <div id="progressBar" class="bg-green-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rollefilter -->
+    <div id="filterSection" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6">
+      <h3 class="text-sm font-semibold text-gray-700 mb-3">Filtrer etter rolle</h3>
+      <div class="flex flex-wrap gap-2" id="roleFilters"></div>
+      <div class="mt-3">
+        <input type="text" id="searchInput" placeholder="Sok etter navn, klubb, e-post..."
+          class="w-full sm:w-80 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500" />
+      </div>
+    </div>
+
+    <!-- Statistikk -->
+    <div id="statsSection" class="hidden grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
+        <div class="text-2xl font-bold text-green-700" id="statClubs">0</div>
+        <div class="text-xs text-gray-500 mt-1">Klubber</div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
+        <div class="text-2xl font-bold text-blue-700" id="statPersons">0</div>
+        <div class="text-xs text-gray-500 mt-1">Kontaktpersoner</div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
+        <div class="text-2xl font-bold text-purple-700" id="statTrainers">0</div>
+        <div class="text-xs text-gray-500 mt-1">Trenere</div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
+        <div class="text-2xl font-bold text-orange-700" id="statLeaders">0</div>
+        <div class="text-xs text-gray-500 mt-1">Daglig ledere</div>
+      </div>
+    </div>
+
+    <!-- Resultattabell -->
+    <div id="tableSection" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Krets</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Klubb</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Navn</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Rolle(r)</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">E-post</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Mobil</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody" class="bg-white divide-y divide-gray-200"></tbody>
+        </table>
+      </div>
+      <div id="tableFooter" class="px-4 py-3 bg-gray-50 text-sm text-gray-500 border-t"></div>
+    </div>
+
+    <!-- Tom tilstand -->
+    <div id="emptyState" class="text-center py-16">
+      <div class="text-gray-300 text-6xl mb-4">&#9917;</div>
+      <h2 class="text-lg font-medium text-gray-600 mb-2">Velg en eller flere kretser og klikk "Start scraping"</h2>
+      <p class="text-sm text-gray-400">Data hentes direkte fra fotball.no sine klubbsider.</p>
+    </div>
+
+  </main>
+
+  <script>
+    // ============================================================
+    // STATE
+    // ============================================================
+    let kretser = [];
+    let selectedKretser = new Set();
+    let allResults = [];
+    let activeRoleFilters = new Set();
+    let isScrapingActive = false;
+    let shouldStop = false;
+
+    // ============================================================
+    // INIT - kretser er hardkodet, men kan ogsaa hentes fra API
+    // ============================================================
+    async function init() {
+      try {
+        const res = await fetch('/api/scraper-kretser');
+        kretser = await res.json();
+      } catch {
+        // Fallback
+        kretser = [
+          { name: 'Agder Fotballkrets', d: 19 },
+          { name: 'Rogaland Fotballkrets', d: 9 },
+          { name: 'Hordaland Fotballkrets', d: 10 },
+          { name: 'Vestfold Fotballkrets', d: 7 },
+          { name: 'Buskerud Fotballkrets', d: 6 },
+          { name: 'Oslo Fotballkrets', d: 4 },
+          { name: 'Akershus Fotballkrets', d: 3 },
+          { name: 'Østfold Fotballkrets', d: 2 },
+          { name: 'Indre Østland Fotballkrets', d: 5 },
+          { name: 'Telemark Fotballkrets', d: 8 },
+        ];
+      }
+      renderKretsButtons();
+    }
+
+    function renderKretsButtons() {
+      document.getElementById('kretsButtons').innerHTML = kretser.map(k => `
+        <button data-d="${k.d}" onclick="toggleKrets(${k.d})"
+          class="krets-btn border-2 border-gray-200 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:border-green-400 hover:bg-green-50 transition-all text-center">
+          ${k.name.replace(' Fotballkrets', '')}
+        </button>
+      `).join('');
+    }
+
+    function toggleKrets(d) {
+      selectedKretser.has(d) ? selectedKretser.delete(d) : selectedKretser.add(d);
+      updateKretsButtons();
+    }
+    function selectAllKretser() { kretser.forEach(k => selectedKretser.add(k.d)); updateKretsButtons(); }
+    function deselectAllKretser() { selectedKretser.clear(); updateKretsButtons(); }
+
+    function updateKretsButtons() {
+      document.querySelectorAll('.krets-btn').forEach(btn => {
+        const d = parseInt(btn.dataset.d);
+        const on = selectedKretser.has(d);
+        btn.classList.toggle('border-green-500', on);
+        btn.classList.toggle('bg-green-50', on);
+        btn.classList.toggle('text-green-800', on);
+        btn.classList.toggle('ring-2', on);
+        btn.classList.toggle('ring-green-200', on);
+        btn.classList.toggle('border-gray-200', !on);
+        btn.classList.toggle('text-gray-700', !on);
+      });
+    }
+
+    // ============================================================
+    // SCRAPING - klient-styrt, klubb for klubb
+    // ============================================================
+    function stopScraping() { shouldStop = true; }
+
+    async function startScraping() {
+      if (selectedKretser.size === 0) return alert('Velg minst en krets!');
+      if (isScrapingActive) return;
+      isScrapingActive = true;
+      shouldStop = false;
+
+      const btn = document.getElementById('btnScrape');
+      btn.disabled = true; btn.textContent = 'Scraper...';
+      document.getElementById('btnStop').classList.remove('hidden');
+      document.getElementById('emptyState').classList.add('hidden');
+      ['progressContainer', 'statsSection', 'tableSection', 'filterSection'].forEach(id =>
+        document.getElementById(id).classList.remove('hidden')
+      );
+
+      allResults = [];
+      const kretserArr = kretser.filter(k => selectedKretser.has(k.d));
+      let totalClubs = 0;
+      let processedClubs = 0;
+
+      // Steg 1: Hent alle klubblister
+      const allClubs = []; // { krets, clubs[] }
+      for (const krets of kretserArr) {
+        setProgress(0, `Henter klubber for ${krets.name}...`);
+        try {
+          const res = await fetch(`/api/scraper-klubber?d=${krets.d}`);
+          if (res.ok) {
+            const clubs = await res.json();
+            allClubs.push({ krets, clubs });
+            totalClubs += clubs.length;
+          }
+        } catch (err) {
+          console.error(`Feil klubber ${krets.name}:`, err);
+        }
+        if (shouldStop) break;
+      }
+
+      setStatus(`${totalClubs} klubber funnet i ${allClubs.length} kretser. Henter kontakter...`);
+
+      // Steg 2: Hent personer for hver klubb
+      for (const { krets, clubs } of allClubs) {
+        for (const club of clubs) {
+          if (shouldStop) break;
+
+          processedClubs++;
+          const pct = Math.round((processedClubs / totalClubs) * 100);
+          setProgress(pct, `${krets.name}: ${club.name} (${processedClubs}/${totalClubs})`);
+
+          try {
+            const res = await fetch(`/api/scraper-personer?fiksId=${club.fiksId}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.persons && data.persons.length > 0) {
+                data.persons.forEach(p => {
+                  allResults.push({ ...p, kretsName: krets.name });
+                });
+                renderTable();
+                updateStats();
+              }
+            }
+          } catch (err) {
+            console.error(`Feil ${club.name}:`, err);
+          }
+        }
+        if (shouldStop) break;
+      }
+
+      // Ferdig
+      setProgress(100, shouldStop ? 'Stoppet.' : 'Ferdig!');
+      setStatus(`${shouldStop ? 'Stoppet' : 'Scraping fullfort'} - ${allResults.length} kontaktpersoner funnet`);
+      btn.disabled = false; btn.textContent = 'Start scraping';
+      document.getElementById('btnStop').classList.add('hidden');
+      document.getElementById('btnExport').disabled = allResults.length === 0;
+      isScrapingActive = false;
+      renderRoleFilters();
+    }
+
+    function setProgress(pct, label) {
+      document.getElementById('progressBar').style.width = pct + '%';
+      document.getElementById('progressPercent').textContent = pct + '%';
+      document.getElementById('progressLabel').textContent = label;
+    }
+    function setStatus(msg) {
+      document.getElementById('statusText').textContent = msg;
+    }
+
+    // ============================================================
+    // TABELL
+    // ============================================================
+    function getFilteredResults() {
+      let results = allResults;
+      if (activeRoleFilters.size > 0) {
+        results = results.filter(r =>
+          r.roles.some(role => [...activeRoleFilters].some(f => role.toLowerCase().includes(f)))
+        );
+      }
+      const search = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
+      if (search) {
+        results = results.filter(r =>
+          r.personName.toLowerCase().includes(search) ||
+          r.clubName.toLowerCase().includes(search) ||
+          (r.email || '').toLowerCase().includes(search)
+        );
+      }
+      return results;
+    }
+
+    function renderTable() {
+      const filtered = getFilteredResults();
+      const tbody = document.getElementById('tableBody');
+
+      tbody.innerHTML = filtered.map((r, i) => {
+        const shortRoles = (r.roles || []).map(role => {
+          const l = role.toLowerCase();
+          if (l.startsWith('ass.trener') || l.startsWith('assistenttrener')) return 'Ass.trener';
+          if (l.startsWith('keepertrener')) return 'Keepertrener';
+          if (l.startsWith('trenerveileder')) return 'Trenerveileder';
+          if (l.includes('daglig leder')) return 'Daglig leder';
+          if (l.includes('sportslig leder')) return 'Sportslig leder';
+          if (l.startsWith('trener')) return 'Trener';
+          return role;
+        });
+        const uniqueRoles = [...new Set(shortRoles)];
+
+        return `
+        <tr class="hover:bg-green-50 fade-in ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}">
+          <td class="px-3 py-2.5 text-sm text-gray-500">${r.kretsName?.replace(' Fotballkrets', '') || ''}</td>
+          <td class="px-3 py-2.5 text-sm text-gray-900 font-medium">${r.clubName || ''}</td>
+          <td class="px-3 py-2.5 text-sm text-gray-900">${r.personName || ''}</td>
+          <td class="px-3 py-2.5 text-sm">
+            ${uniqueRoles.map(role => {
+              const cls = role.toLowerCase().includes('trener') ? 'bg-blue-100 text-blue-800' :
+                          role.toLowerCase().includes('leder') ? 'bg-orange-100 text-orange-800' :
+                          'bg-gray-100 text-gray-700';
+              return `<span class="inline-block ${cls} text-xs font-medium px-2 py-0.5 rounded-full">${role}</span>`;
+            }).join(' ')}
+          </td>
+          <td class="px-3 py-2.5 text-sm">
+            ${r.email ? `<a href="mailto:${r.email}" class="text-green-700 hover:underline font-medium">${r.email}</a>` : '<span class="text-gray-300">-</span>'}
+          </td>
+          <td class="px-3 py-2.5 text-sm text-gray-600">
+            ${r.phone ? `<a href="tel:${r.phone}" class="text-gray-800">${r.phone}</a>` : '<span class="text-gray-300">-</span>'}
+          </td>
+        </tr>`;
+      }).join('');
+
+      document.getElementById('tableFooter').textContent =
+        `Viser ${filtered.length} av ${allResults.length} resultater`;
+    }
+
+    function updateStats() {
+      document.getElementById('statPersons').textContent = allResults.length;
+      document.getElementById('statClubs').textContent = new Set(allResults.map(r => r.clubFiksId || r.clubName)).size;
+      document.getElementById('statTrainers').textContent = allResults.filter(r =>
+        r.roles.some(role => role.toLowerCase().includes('trener'))
+      ).length;
+      document.getElementById('statLeaders').textContent = allResults.filter(r =>
+        r.roles.some(role => role.toLowerCase().includes('leder'))
+      ).length;
+    }
+
+    function renderRoleFilters() {
+      const cats = [
+        { key: 'daglig leder', label: 'Daglig leder' },
+        { key: 'sportslig leder', label: 'Sportslig leder' },
+        { key: 'trener', label: 'Trenere (alle)' },
+        { key: 'ass.trener', label: 'Ass.trenere' },
+        { key: 'keepertrener', label: 'Keepertrenere' },
+        { key: 'trenerveileder', label: 'Trenerveiledere' },
+      ];
+      document.getElementById('roleFilters').innerHTML = cats.map(c => `
+        <button onclick="toggleRoleFilter('${c.key}')"
+          class="role-filter-btn border border-gray-300 rounded-full px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-green-400 hover:bg-green-50 transition-all"
+          data-role="${c.key}">${c.label}</button>
+      `).join('');
+    }
+
+    function toggleRoleFilter(role) {
+      activeRoleFilters.has(role) ? activeRoleFilters.delete(role) : activeRoleFilters.add(role);
+      document.querySelectorAll('.role-filter-btn').forEach(btn => {
+        const on = activeRoleFilters.has(btn.dataset.role);
+        btn.classList.toggle('bg-green-100', on);
+        btn.classList.toggle('border-green-500', on);
+        btn.classList.toggle('text-green-800', on);
+        btn.classList.toggle('border-gray-300', !on);
+        btn.classList.toggle('text-gray-600', !on);
+      });
+      renderTable();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      init();
+      document.getElementById('searchInput')?.addEventListener('input', () => renderTable());
+    });
+
+    // ============================================================
+    // CSV EKSPORT
+    // ============================================================
+    function exportCSV() {
+      const filtered = getFilteredResults();
+      if (filtered.length === 0) return;
+
+      const esc = v => {
+        if (!v) return '';
+        const s = String(v);
+        return (s.includes(';') || s.includes('"') || s.includes('\n')) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+
+      const csv = [
+        '\uFEFF' + ['Krets','Klubb','Navn','Roller','E-post','Mobil'].join(';'),
+        ...filtered.map(r => [
+          r.kretsName || '', r.clubName || '', r.personName || '',
+          (r.roles || []).join(', '), r.email || '', r.phone || '',
+        ].map(esc).join(';'))
+      ].join('\n');
+
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+      link.download = `nff-kontakter-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+    }
+  </script>
+</body>
+</html>
